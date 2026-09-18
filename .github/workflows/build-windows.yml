@@ -40,20 +40,19 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           p = Path("src/CI.mk")
           s = p.read_text(encoding="utf-8")
 
-          matches = re.findall(r'--install-prefix=[^\s]+', s)
-          print("Found install-prefix tokens:", matches)
-          if len(matches) != 1:
-              raise SystemExit(f"Expected one --install-prefix option, found {len(matches)}")
+          old = '--install-prefix="$(winepwd)/'
+          new = '--install-prefix="Z:$(pwd)/'
+          count = s.count(old)
+          print(f"Found {count} Windows install-prefix entries using winepwd")
+          if count != 3:
+              raise SystemExit(f"Expected three Windows install-prefix entries, found {count}")
 
-          replacement = '-DCMAKE_INSTALL_PREFIX="Z:$(pwd)/libgit2-0.27.2/release"'
-          s = re.sub(r'--install-prefix=[^\s]+', replacement, s, count=1)
-          p.write_text(s, encoding="utf-8")
-          print("Patched CI.mk libgit2 install prefix for current CMake under Wine.")
+          p.write_text(s.replace(old, new), encoding="utf-8")
+          print("Patched libgit2, zlib and QuaZip install prefixes to Wine Z: absolute paths.")
           PY
 
       - name: Build portable Win64 package
