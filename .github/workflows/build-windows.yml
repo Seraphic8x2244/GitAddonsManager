@@ -51,8 +51,19 @@ jobs:
           if count != 4:
               raise SystemExit(f"Expected four Windows install-prefix entries, found {count}")
 
-          p.write_text(s.replace(old, new), encoding="utf-8")
+          s = s.replace(old, new)
+
+          old_quazip = "QuaZip-Qt6-1.5"
+          new_quazip = "QuaZip-Qt6-1.7.2"
+          qcount = s.count(old_quazip)
+          print(f"Found {qcount} stale QuaZip 1.5 package-path entries")
+          if qcount != 1:
+              raise SystemExit(f"Expected one QuaZip 1.5 package-path entry, found {qcount}")
+          s = s.replace(old_quazip, new_quazip)
+
+          p.write_text(s, encoding="utf-8")
           print("Patched all Windows dependency install prefixes to Wine Z: absolute paths.")
+          print("Patched final QuaZip package path from 1.5 to 1.7.2.")
           PY
 
       - name: Build portable Win64 package
