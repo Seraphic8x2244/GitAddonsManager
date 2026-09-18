@@ -1,0 +1,43 @@
+diff --git a/addon.cpp b/addon.cpp
+--- a/addon.cpp
++++ b/addon.cpp
+@@ -70,7 +70,10 @@ void Addon::update()
+                 newName = QString(m_currentBranch).replace(strlen(buf.ptr), 1, '_');
+             if (git_branch_create(&nlbr, m_repo.get(), newName.toLocal8Bit(), commit, 1) != GIT_OK)
+                 git_branch_lookup(&nlbr, m_repo.get(), newName.toLocal8Bit(), GIT_BRANCH_LOCAL);
+-            check_git_return(git_branch_set_upstream(nlbr, git_reference_name(lbr)));
++            const char *upstream_name = nullptr;
++            check_git_return(git_branch_name(&upstream_name, lbr));
++            check_git_return(git_branch_set_upstream(nlbr, upstream_name));
+             lbr.reset(nlbr);
+         }
+         if (!git_branch_is_head(lbr))
+@@ -110,11 +113,14 @@ void Addon::scanBranches()
+                 data.cb = bname;
+                 git_buf buf = GIT_BUF_INIT_CONST(0, nullptr);
+                 AutoPtr<git_buf> buf_g(&buf, git_buf_free);
+-                (git_reference_is_remote(ref) ?
++                int remoteError = (git_reference_is_remote(ref) ?
+                     git_branch_remote_name :
+                     git_branch_upstream_remote
+                 )(&buf, m_repo.get(), git_reference_name(ref));
+-                data.cr = buf.ptr;
++                if (remoteError == GIT_OK && buf.ptr && *buf.ptr)
++                    data.cr = buf.ptr;
++                else
++                    data.cr.clear();
+             }
+             ref.reset();
+         }
+@@ -230,6 +236,11 @@ int fetch_progress_cb(const git_transfer_progress *stats, void *payload) {
+ }
+ void Addon::fetchRemote(QString remote)
+ {
++    if (remote.trimmed().isEmpty()) {
++        qWarning() << m_name << "Skipping fetch: current branch has no associated remote";
++        return;
++    }
++
+     delegate(remote + " Fetch", [this, remote](){
+         git_fetch_options fetch_opts = GIT_FETCH_OPTIONS_INIT;
+         fetch_opts.callbacks.transfer_progress = &fetch_progress_cb;
