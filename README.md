@@ -1,21 +1,21 @@
 # GitAddonsManager branch-fix build
 
-This patch targets WobLight/GitAddonsManager commit `4cfafffd4e48038203622f201729349b8e8b9809`.
+This repository builds a patched Windows version of WobLight/GitAddonsManager from exact upstream commit `4cfafffd4e48038203622f201729349b8e8b9809`.
 
-It contains two related fixes:
+## Fixes
 
-1. **Remote branch -> local branch tracking fix**
+1. **Remote branch -> local branch tracking**
    - Based on upstream MR !2 (`tuxpaint/fix-branches`).
-   - Uses the abbreviated branch name (`origin/dev`) with `git_branch_set_upstream()` instead of the full ref (`refs/remotes/origin/dev`).
-   - Also checks the return value from `git_branch_name()`.
+   - Uses the abbreviated remote-tracking branch name such as `origin/dev` with `git_branch_set_upstream()`.
+   - Checks the result of `git_branch_name()`.
 
 2. **Missing-upstream defensive handling**
-   - `scanBranches()` no longer treats a failed upstream-remote lookup as a valid empty remote.
-   - `fetchRemote()` refuses to fetch an empty remote and logs a clear warning instead of producing `'' is not a valid remote name`.
+   - A failed upstream-remote lookup no longer becomes an empty remote that is later fetched.
+   - `fetchRemote()` explicitly refuses an empty remote and logs a warning.
 
-## Expected result
+## Expected behaviour
 
-After selecting `origin/dev`, GitAddonsManager should create/check out local `dev` and `.git/config` should contain equivalent tracking metadata:
+Selecting `origin/dev` should create/check out local `dev` with tracking metadata equivalent to:
 
 ```ini
 [branch "dev"]
@@ -27,6 +27,12 @@ Subsequent refreshes should fetch `origin` normally.
 
 ## Build
 
-The included GitHub Actions workflow clones the exact upstream base commit, applies `GitAddonsManager_branch_fix.patch`, then uses WobLight's own OpenSUSE/Wine/Qt Win64 build path from `CI.mk`.
+GitHub Actions:
 
-The workflow artifact is named `GitAddonsManager-Win64-branchfix`.
+1. clones the exact WobLight base commit;
+2. runs `apply_branch_fix.py`, which requires each intended source fragment to match exactly once;
+3. validates the resulting diff;
+4. uses WobLight's own `CI.mk` Wine/Qt Windows build path;
+5. uploads the portable build as `GitAddonsManager-Win64-branchfix`.
+
+The build artifact also includes the exact generated source diff as `GitAddonsManager_branch_fix.generated.patch`.
