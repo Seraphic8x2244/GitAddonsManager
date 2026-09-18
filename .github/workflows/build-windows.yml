@@ -1,0 +1,51 @@
+name: Build GitAddonsManager branch fix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'GitAddonsManager_branch_fix.patch'
+      - '.github/workflows/build-windows.yml'
+
+jobs:
+  build-win64:
+    runs-on: ubuntu-latest
+    container: opensuse/tumbleweed
+    env:
+      CI_COMMIT_BRANCH: branchfix
+      CI_DEFAULT_BRANCH: branchfix
+      CI_JOB_NAME: Win64
+    steps:
+      - name: Install bootstrap tools
+        run: zypper -q install -y git find wine-staging wine-staging-32bit wget make p7zip tar gzip patch || true
+
+      - name: Check out build harness
+        uses: actions/checkout@v4
+
+      - name: Clone upstream
+        run: |
+          git clone https://gitlab.com/woblight/GitAddonsManager.git src
+          cd src
+          git checkout 4cfafffd4e48038203622f201729349b8e8b9809
+
+      - name: Apply branch fix
+        run: |
+          cp "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.patch" /tmp/GitAddonsManager_branch_fix.patch
+          cd src
+          git apply --check /tmp/GitAddonsManager_branch_fix.patch
+          git apply /tmp/GitAddonsManager_branch_fix.patch
+          git diff --check
+          git diff -- addon.cpp
+
+      - name: Build portable Win64 package
+        working-directory: src
+        run: |
+          make -f CI.mk windeploy
+          make -f CI.mk finalize
+
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitAddonsManager-Win64-branchfix
+          path: src/GitAddonsManager/
+          if-no-files-found: error
