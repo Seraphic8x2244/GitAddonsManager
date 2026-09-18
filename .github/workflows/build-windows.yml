@@ -1,5 +1,6 @@
 name: Build GitAddonsManager branch fix
 
+# Triggerable manually or whenever the patch/workflow changes.
 on:
   workflow_dispatch:
   push:
