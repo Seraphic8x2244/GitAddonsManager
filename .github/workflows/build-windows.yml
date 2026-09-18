@@ -36,6 +36,21 @@ jobs:
           git diff -- addon.cpp
           git diff -- addon.cpp > "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch"
 
+      - name: Fix current CMake/Wine install-prefix compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/CI.mk")
+          s = p.read_text(encoding="utf-8")
+          old = '--install-prefix="/libgit2-0.27.2/release"'
+          new = '-DCMAKE_INSTALL_PREFIX="Z:$(pwd)/libgit2-0.27.2/release"'
+          count = s.count(old)
+          if count != 1:
+              raise SystemExit(f"Expected one libgit2 install-prefix occurrence, found {count}")
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          print("Patched CI.mk libgit2 install prefix for current CMake under Wine.")
+          PY
+
       - name: Build portable Win64 package
         working-directory: src
         run: |
