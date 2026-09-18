@@ -48,11 +48,11 @@ jobs:
           new = '--install-prefix="Z:$(pwd)/'
           count = s.count(old)
           print(f"Found {count} Windows install-prefix entries using winepwd")
-          if count != 3:
-              raise SystemExit(f"Expected three Windows install-prefix entries, found {count}")
+          if count != 4:
+              raise SystemExit(f"Expected four Windows install-prefix entries, found {count}")
 
           p.write_text(s.replace(old, new), encoding="utf-8")
-          print("Patched libgit2, zlib and QuaZip install prefixes to Wine Z: absolute paths.")
+          print("Patched all Windows dependency install prefixes to Wine Z: absolute paths.")
           PY
 
       - name: Build portable Win64 package
