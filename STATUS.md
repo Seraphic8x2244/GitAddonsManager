@@ -31,9 +31,14 @@
 - `v1.2.0` Win64 build completed successfully.
 - Build produces both clean and legacy-named artifacts for the one-time updater transition.
 
+## Runtime test status
+- Installed `v1.1.0-branchfix.2` successfully detects the published `v1.2.0` release.
+- Download/update discovery therefore works end-to-end.
+- Applying the update fails on Windows with `Failed to move files to D:/...`.
+- Current investigation target: updater extraction/replacement stage after download.
+
 ## Untested
-- `v1.2.0` still needs a Windows runtime check.
-- The updater needs an end-to-end test from the installed `v1.1.0-branchfix.2` to a published `v1.2.0` release.
+- Successful in-place replacement/restart from `v1.1.0-branchfix.2` to `v1.2.0`.
 - Wider regression testing across addon repositories remains limited.
 
 ## Transition requirement
@@ -55,4 +60,4 @@ Later:
 - Named management of multiple WoW directories/installations.
 
 ## Exact next step
-Publish `v1.2.0` with both transition assets, leave the installed `v1.1.0-branchfix.2` in place, and use its in-app updater to move to `v1.2.0`. Once that succeeds, begin the font-size / toolbar / branch-width UI batch for the next release.
+Inspect the existing `executeUpdate()` replacement logic and the generated ZIP layout to determine why Windows reports `Failed to move files to D:/...`. Patch the apply stage without regressing the now-working GitHub release discovery/download path, build a test release, then retry the in-app update.
