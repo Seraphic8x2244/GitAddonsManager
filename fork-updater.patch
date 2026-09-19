@@ -1,0 +1,273 @@
+diff --git a/CI.mk b/CI.mk
+index f1435e4..a24e2a0 100644
+--- a/CI.mk
++++ b/CI.mk
+@@ -9,7 +9,7 @@ winepwd:=$(shell $(wine) winepath -w $(pwd))
+ WINEPREFIX=WINEPREFIX="$(pwd)/wine"
+ WINEPATH=WINEPATH='C:\\Program Files (x86)\\CMake\\bin;$(shell $(winepath) -w "$(pwd)/mingw64/bin");$(shell $(winepath) -w "$(pwd)/Qt/6.7.2/mingw_64/bin")' QTDIR="Z:$(pwd)/Qt/6.7.2/mingw_64/"
+ branch:=$(CI_COMMIT_BRANCH)
+-gam_opts:=-DGitAddonsManager_SELF_UPDATE=ON -DGitAddonsManager_GIT_DESCRIBE="$(shell git describe --tags --long)" -DGitAddonsManager_BUILD_NAME=$(CI_JOB_NAME) -DGitAddonsManager_BRANCH_NAME=$(branch)
++gam_opts:=-DGitAddonsManager_SELF_UPDATE=ON -DGitAddonsManager_GIT_DESCRIBE="$(shell git describe --tags --long)" -DGitAddonsManager_BUILD_NAME=$(CI_JOB_NAME) -DGitAddonsManager_BRANCH_NAME=$(branch) -DGitAddonsManager_FORK_VERSION="$(GAM_FORK_VERSION)"
+ ifeq ($(branch),)
+ branch:=$(CI_DEFAULT_BRANCH)
+ endif
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2e9b51f..019f4b0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -48,6 +48,8 @@ set(${PROJECT_NAME}_BUILD_NAME "" CACHE STRING "name of the build pipeline for s
+ 
+ set(${PROJECT_NAME}_BRANCH_NAME "" CACHE STRING "name of the branch for self updates")
+ 
++set(${PROJECT_NAME}_FORK_VERSION "development" CACHE STRING "version of the GitHub fork build")
++
+ option(${PROJECT_NAME}_SELF_UPDATE "Enable the self-update feature")
+ 
+ qt_add_executable(GitAddonsManager
+@@ -67,6 +69,7 @@ set_target_properties(GitAddonsManager PROPERTIES
+ add_compile_definitions(
+     GIT_DESCRIBE="${${PROJECT_NAME}_GIT_DESCRIBE}"
+     GAM_EXEC="GitAddonsManager${CMAKE_EXECUTABLE_SUFFIX}"
++    GAM_FORK_VERSION="${${PROJECT_NAME}_FORK_VERSION}"
+     )
+ 
+ if (${PROJECT_NAME}_SELF_UPDATE)
+diff --git a/control.cpp b/control.cpp
+index 8bf03dc..360f9f0 100644
+--- a/control.cpp
++++ b/control.cpp
+@@ -28,6 +28,11 @@
+ #include <QNetworkAccessManager>
+ #include <QNetworkRequest>
+ #include <QNetworkReply>
++#include <QJsonDocument>
++#include <QJsonArray>
++#include <QJsonObject>
++#include <QVersionNumber>
++#include <QRegularExpression>
+ #include <QApplication>
+ #ifdef GAM_SELF_UPDATE
+ #include <quazip.h>
+@@ -41,6 +46,14 @@ Control *Control::m_instance = nullptr;
+ QStringList Control::m_availableStyles;
+ QNetworkAccessManager *nam = nullptr;
+ 
++static QVersionNumber forkVersionNumber(QString version)
++{
++    if (version.startsWith('v'))
++        version.remove(0, 1);
++    version.replace("-branchfix.", ".");
++    return QVersionNumber::fromString(version);
++}
++
+ Control::Control(QObject *parent) : QObject(parent),
+     m_progress(0), m_total(0), m_status(Status::Ready), m_statusMessage(""), m_pool(new QThreadPool(this)),
+     m_style(QQuickStyle::name())
+@@ -536,21 +549,58 @@ void Control::setAvailableStyles(QStringList availableStyles)
+ void Control::checkForUpdates()
+ {
+ #ifdef GAM_SELF_UPDATE
+-    QNetworkRequest req(QUrl(QString("https://gitlab.com/woblight/GitAddonsManager/-/jobs/artifacts/%1/download?job=%2").arg(GAM_BRANCH_NAME).arg(GAM_BUILD_NAME)));
++    QNetworkRequest req(QUrl("https://api.github.com/repos/Seraphic8x2244/GitAddonsManager-branchfix/releases?per_page=1"));
++    req.setRawHeader("Accept", "application/vnd.github+json");
++    req.setRawHeader("User-Agent", "GitAddonsManager-branchfix");
+     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+-    connect(nam, &QNetworkAccessManager::finished, [](auto reply){
+-        QApplication::setApplicationDisplayName(reply->errorString());
+-    });
+-    auto reply = nam->head(req);
++
++    m_updateDownloadUrl.clear();
++    auto reply = nam->get(req);
+     setUpdateStatus(UpdateStatus::CheckingForUpdate);
+     connect(reply, &QNetworkReply::finished,[this, reply](){
+-        QRegularExpression shaCapt(QString("GitAddonsManager_%1-(\\w{40})\\.zip").arg(GAM_BUILD_NAME));
+-        auto match = shaCapt.match(reply->url().toString());
+-        if (match.hasMatch()) {
+-            if (!QString(GIT_DESCRIBE).endsWith(match.captured(1).chopped(33)))
+-                setUpdateStatus(UpdateStatus::UpdateAvailable);
+-            else setUpdateStatus(UpdateStatus::NoUpdate);
+-        };
++        if (reply->error() != QNetworkReply::NoError) {
++            setUpdateStatus(UpdateStatus::UpdateError);
++            reply->deleteLater();
++            return;
++        }
++
++        QJsonParseError parseError;
++        const auto doc = QJsonDocument::fromJson(reply->readAll(), &parseError);
++        if (parseError.error != QJsonParseError::NoError || !doc.isArray() || doc.array().isEmpty()) {
++            setUpdateStatus(UpdateStatus::UpdateError);
++            reply->deleteLater();
++            return;
++        }
++
++        const auto release = doc.array().first().toObject();
++        const QString latestTag = release.value("tag_name").toString();
++        const QVersionNumber latestVersion = forkVersionNumber(latestTag);
++        const QVersionNumber currentVersion = forkVersionNumber(QStringLiteral(GAM_FORK_VERSION));
++
++        if (!latestVersion.isNull() && !currentVersion.isNull() && latestVersion <= currentVersion) {
++            setUpdateStatus(UpdateStatus::NoUpdate);
++            reply->deleteLater();
++            return;
++        }
++        if (latestVersion.isNull() && latestTag == QStringLiteral(GAM_FORK_VERSION)) {
++            setUpdateStatus(UpdateStatus::NoUpdate);
++            reply->deleteLater();
++            return;
++        }
++
++        const auto assets = release.value("assets").toArray();
++        for (const auto &assetValue : assets) {
++            const auto asset = assetValue.toObject();
++            if (asset.value("name").toString() == QStringLiteral("GitAddonsManager-Win64-branchfix.zip")) {
++                m_updateDownloadUrl = QUrl(asset.value("browser_download_url").toString());
++                break;
++            }
++        }
++
++        setUpdateStatus(m_updateDownloadUrl.isValid() && !m_updateDownloadUrl.isEmpty()
++                            ? UpdateStatus::UpdateAvailable
++                            : UpdateStatus::UpdateError);
++        reply->deleteLater();
+     });
+ #endif
+ }
+@@ -558,13 +608,20 @@ void Control::checkForUpdates()
+ void Control::downloadUpdate()
+ {
+ #ifdef GAM_SELF_UPDATE
++    if (!m_updateDownloadUrl.isValid() || m_updateDownloadUrl.isEmpty()) {
++        setUpdateStatus(UpdateStatus::UpdateError);
++        return;
++    }
++
+     QFile *zip = new QFile(QApplication::applicationDirPath() + "/GitAddonsManager.zip");
+     if (!zip->open(QFile::WriteOnly)) {
++        delete zip;
+         setUpdateStatus(UpdateStatus::UpdateError);
+         return;
+     }
+ 
+-    QNetworkRequest req(QUrl(QString("https://gitlab.com/woblight/GitAddonsManager/-/jobs/artifacts/%1/download?job=%2").arg(GAM_BRANCH_NAME).arg(GAM_BUILD_NAME)));
++    QNetworkRequest req(m_updateDownloadUrl);
++    req.setRawHeader("User-Agent", "GitAddonsManager-branchfix");
+     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+     auto reply = nam->get(req);
+     setUpdateStatus(UpdateStatus::DownloadingUpdate);
+@@ -572,14 +629,15 @@ void Control::downloadUpdate()
+         zip->write(reply->readAll());
+     });
+     connect(reply, &QNetworkReply::finished, [this, reply, zip]() {
++        zip->write(reply->readAll());
+         zip->close();
+         delete zip;
+         setUpdateStatus(reply->error() == QNetworkReply::NoError ? UpdateStatus::UpdateReady : UpdateStatus::UpdateError);
+         reply->deleteLater();
+     });
+-    connect(reply, &QNetworkReply::downloadProgress, [this](qint64 recieved, qint64 bytesTotal) {
++    connect(reply, &QNetworkReply::downloadProgress, [this](qint64 received, qint64 bytesTotal) {
+         setTotal(bytesTotal);
+-        setProgress(recieved);
++        setProgress(received);
+     });
+ #endif
+ }
+@@ -590,22 +648,35 @@ void Control::executeUpdate()
+     delegate("Apply Update", [this](){
+         QDir appRoot(QApplication::applicationDirPath());
+         QuaZip zip(appRoot.absoluteFilePath("GitAddonsManager.zip"));
+-        if (!zip.open(QuaZip::mdUnzip))
++        if (!zip.open(QuaZip::mdUnzip)) {
++            setUpdateStatus(UpdateStatus::UpdateError);
+             return;
++        }
+         QDir root(appRoot.absoluteFilePath("update"));
+-        appRoot.mkdir(root.absolutePath());
++        appRoot.mkpath(root.absolutePath());
+         unsigned int size = 0;
+         foreach (const QuaZipFileInfo &info, zip.getFileInfoList())
+             size += info.uncompressedSize;
+         setTotal(size);
+         size = 0;
+         foreach (const QuaZipFileInfo &info, zip.getFileInfoList()) {
++            QString relativePath = QDir::cleanPath(info.name);
++            if (relativePath.isEmpty() || relativePath == "." || relativePath == ".." ||
++                relativePath.startsWith("../") || QDir::isAbsolutePath(relativePath))
++                continue;
++            if (info.name.endsWith('/')) {
++                root.mkpath(relativePath);
++                continue;
++            }
++
+             QuaZipFile z(zip.getZipName(), info.name);
+-            z.open(QuaZipFile::ReadOnly);
+-            QFileInfo finfo(root.absoluteFilePath(info.name.section("/",1)));
++            if (!z.open(QuaZipFile::ReadOnly))
++                continue;
++            QFileInfo finfo(root.absoluteFilePath(relativePath));
+             root.mkpath(finfo.absolutePath());
+             QFile f(finfo.absoluteFilePath());
+-            f.open(QFile::WriteOnly);
++            if (!f.open(QFile::WriteOnly))
++                continue;
+             QByteArray chunk;
+             while (!(chunk = z.read(32*1024)).isEmpty()) {
+                 f.write(chunk);
+diff --git a/control.h b/control.h
+index 7052589..0d85375 100644
+--- a/control.h
++++ b/control.h
+@@ -179,18 +179,20 @@ private:
+ 
+     UpdateStatus m_updateStatus = UpdateStatus::NoUpdate;
+ 
++    QUrl m_updateDownloadUrl;
++
+     QStringList m_addonsPaths;
+ 
+     bool m_useRepoDirectory;
+ 
+-    QString m_version = QString("%1 (%2 %3)").arg(GIT_DESCRIBE)
++    QString m_version = QString("%1 / upstream %2 (%3 %4)").arg(GAM_FORK_VERSION).arg(GIT_DESCRIBE)
+ #ifdef GAM_BUILD_NAME
+                                                                    .arg(GAM_BUILD_NAME)
+ #else
+                                                                    .arg(QSysInfo::productType())
+ #endif
+-#ifdef GAM_BANCH_NAME
+-                                                                   .arg(GAM_BANCH_NAME)
++#ifdef GAM_BRANCH_NAME
++                                                                   .arg(GAM_BRANCH_NAME)
+ #else
+                                                                    .arg(QSysInfo::buildCpuArchitecture())
+ #endif
+diff --git a/main.qml b/main.qml
+index 4727d43..49eb010 100644
+--- a/main.qml
++++ b/main.qml
+@@ -159,15 +159,20 @@ ApplicationWindow {
+ 
+             ColumnLayout {
+                 Label {
+-                    text: "Author: woblight <woblight@gmail.com>"
++                    text: "Original author: woblight <woblight@gmail.com>"
+                 }
+                 Label {
+-                    text: "Source code: <a href=\"https://gitlab.com/woblight/GitAddonsManager\">GitLab</a>"
++                    text: "Fork source: <a href=\"https://github.com/Seraphic8x2244/GitAddonsManager-branchfix\">GitHub</a>"
+                     onLinkActivated: Qt.openUrlExternally(link)
+                     textFormat: Text.RichText
+                 }
+                 Label {
+-                    text: "Report an issue: <a href=\"https://gitlab.com/woblight/GitAddonsManager/-/issues\">GitLab</a>"
++                    text: "Report an issue: <a href=\"https://github.com/Seraphic8x2244/GitAddonsManager-branchfix/issues\">GitHub</a>"
++                    onLinkActivated: Qt.openUrlExternally(link)
++                    textFormat: Text.RichText
++                }
++                Label {
++                    text: "Upstream source: <a href=\"https://gitlab.com/woblight/GitAddonsManager\">GitLab</a>"
+                     onLinkActivated: Qt.openUrlExternally(link)
+                     textFormat: Text.RichText
+                 }
