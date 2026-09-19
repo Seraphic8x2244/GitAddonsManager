@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'apply_branch_fix.py'
+      - 'fork-updater.patch'
       - '.github/workflows/build-windows.yml'
 
 jobs:
@@ -15,6 +16,7 @@ jobs:
       CI_COMMIT_BRANCH: branchfix
       CI_DEFAULT_BRANCH: branchfix
       CI_JOB_NAME: Win64
+      GAM_FORK_VERSION: v1.1.0-branchfix.2
     steps:
       - name: Install bootstrap tools
         run: zypper -q install -y git find wine-staging wine-staging-32bit wget make p7zip tar gzip patch python3 || true
@@ -35,6 +37,12 @@ jobs:
           git diff --check
           git diff -- addon.cpp
           git diff -- addon.cpp > "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch"
+
+      - name: Apply fork updater and About changes
+        run: |
+          cd src
+          git apply "$GITHUB_WORKSPACE/fork-updater.patch"
+          git diff --check
 
       - name: Fix current CMake/Wine install-prefix compatibility
         run: |
@@ -72,8 +80,10 @@ jobs:
           make -f CI.mk windeploy
           make -f CI.mk finalize
 
-      - name: Include generated patch in package
-        run: cp "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch" src/GitAddonsManager/
+      - name: Include patch references in package
+        run: |
+          cp "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch" src/GitAddonsManager/
+          cp "$GITHUB_WORKSPACE/fork-updater.patch" src/GitAddonsManager/
 
       - name: Upload portable build
         uses: actions/upload-artifact@v4
@@ -81,3 +91,4 @@ jobs:
           name: GitAddonsManager-Win64-branchfix
           path: src/GitAddonsManager/
           if-no-files-found: error
+          include-hidden-files: true
