@@ -1,38 +1,41 @@
-# GitAddonsManager branch-fix build
+# GitAddonsManager
 
-This repository builds a patched Windows version of WobLight/GitAddonsManager from exact upstream commit `4cfafffd4e48038203622f201729349b8e8b9809`.
+A maintained Windows build of GitAddonsManager, based on WobLight's original project and focused on fixing long-standing issues and improving day-to-day addon management.
 
-## Fixes
+Upstream project: WobLight/GitAddonsManager  
+Current upstream base: `4cfafffd4e48038203622f201729349b8e8b9809`
 
-1. **Remote branch -> local branch tracking**
-   - Based on upstream MR !2 (`tuxpaint/fix-branches`).
-   - Uses the abbreviated remote-tracking branch name such as `origin/dev` with `git_branch_set_upstream()`.
-   - Checks the result of `git_branch_name()`.
+## Current improvements
 
-2. **Missing-upstream defensive handling**
-   - A failed upstream-remote lookup no longer becomes an empty remote that is later fetched.
-   - `fetchRemote()` explicitly refuses an empty remote and logs a warning.
+### Multi-branch addon handling
 
-## Expected behaviour
+Fixes broken local branch tracking when addons expose multiple remote branches.
 
-Selecting `origin/dev` should create/check out local `dev` with tracking metadata equivalent to:
+The fix:
 
-```ini
-[branch "dev"]
-    remote = origin
-    merge = refs/heads/dev
-```
+- creates local branches with the correct upstream branch name;
+- checks branch-name lookup errors;
+- safely handles repositories with missing upstream metadata;
+- refuses to fetch an empty/invalid remote.
 
-Subsequent refreshes should fetch `origin` normally.
+Existing addon folders already damaged by the previous branch handling may need to be deleted and cloned again once.
+
+### GitHub release updater
+
+The maintained build uses releases from this repository for self-updates rather than WobLight's historical GitLab CI artifacts.
+
+### UI improvements
+
+UI work is ongoing. Planned work includes configurable text sizing, cleaner bulk-action layout, consistent branch selectors, column/layout controls, a compact removal confirmation, and better multiple-WoW-directory management.
 
 ## Build
 
 GitHub Actions:
 
-1. clones the exact WobLight base commit;
-2. runs `apply_branch_fix.py`, which requires each intended source fragment to match exactly once;
-3. validates the resulting diff;
-4. uses WobLight's own `CI.mk` Wine/Qt Windows build path;
-5. uploads the portable build as `GitAddonsManager-Win64-branchfix`.
+1. clones the pinned WobLight upstream commit;
+2. applies the maintained fixes/enhancements with guarded source transformations;
+3. validates the resulting source diff;
+4. uses the original Wine/Qt Windows build path;
+5. uploads a portable Win64 build.
 
-The build artifact also includes the exact generated source diff as `GitAddonsManager_branch_fix.generated.patch`.
+The original WobLight project remains credited in the application About page and here as the upstream source.
