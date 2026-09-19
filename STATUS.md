@@ -36,7 +36,7 @@
 - In-app download and replacement completed successfully on Windows.
 - Files in the GAM folder were updated and the restarted application reports `v1.2.0`.
 - A misleading `Failed to move files to D:/...` message was shown despite the successful update.
-- Current investigation target: identify and remove the false-negative message in the updater apply/cleanup stage.
+- Source inspection indicates a Windows shutdown race: the replacement process is started before the old GAM process has fully returned, so an initial delete can briefly fail on a locked EXE/DLL. The code permanently marks the operation failed even if the later move succeeds after the lock clears.
 
 ## Untested
 - Wider regression testing across addon repositories remains limited.
@@ -60,4 +60,4 @@ Later:
 - Named management of multiple WoW directories/installations.
 
 ## Exact next step
-Trace the condition that emits `Failed to move files to ...` after a successful update, make that result accurately reflect partial/cleanup failures, then proceed with the font-size / toolbar / branch-width UI batch.
+Add bounded retry handling around updater destination removal/replacement so transient Windows file locks do not produce a false failure. Then proceed with the font-size / toolbar / branch-width UI batch.
