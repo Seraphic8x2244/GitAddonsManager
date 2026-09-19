@@ -1,11 +1,11 @@
-name: Build GitAddonsManager branch fix
+name: Build GitAddonsManager
 
 on:
   workflow_dispatch:
   push:
     paths:
       - 'apply_branch_fix.py'
-      - 'fork-updater.patch'
+      - 'gam-enhancements.patch'
       - '.github/workflows/build-windows.yml'
 
 jobs:
@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     container: opensuse/tumbleweed
     env:
-      CI_COMMIT_BRANCH: branchfix
-      CI_DEFAULT_BRANCH: branchfix
+      CI_COMMIT_BRANCH: main
+      CI_DEFAULT_BRANCH: main
       CI_JOB_NAME: Win64
-      GAM_FORK_VERSION: v1.1.0-branchfix.2
+      GAM_RELEASE_VERSION: v1.2.0
     steps:
       - name: Install bootstrap tools
         run: zypper -q install -y git find wine-staging wine-staging-32bit wget make p7zip tar gzip patch python3 || true
@@ -38,10 +38,10 @@ jobs:
           git diff -- addon.cpp
           git diff -- addon.cpp > "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch"
 
-      - name: Apply fork updater and About changes
+      - name: Apply GAM enhancements
         run: |
           cd src
-          git apply "$GITHUB_WORKSPACE/fork-updater.patch"
+          git apply "$GITHUB_WORKSPACE/gam-enhancements.patch"
           git diff --check
 
       - name: Fix current CMake/Wine install-prefix compatibility
@@ -52,13 +52,13 @@ jobs:
           p = Path("src/CI.mk")
           s = p.read_text(encoding="utf-8")
 
-          old_fork_opt = '-DGitAddonsManager_BRANCH_NAME=$(branch)'
-          new_fork_opt = old_fork_opt + ' -DGitAddonsManager_FORK_VERSION="$(GAM_FORK_VERSION)"'
-          fcount = s.count(old_fork_opt)
-          print(f"Found {fcount} app CMake option blocks needing fork version")
+          old_release_opt = '-DGitAddonsManager_BRANCH_NAME=$(branch)'
+          new_release_opt = old_release_opt + ' -DGitAddonsManager_RELEASE_VERSION="$(GAM_RELEASE_VERSION)"'
+          fcount = s.count(old_release_opt)
+          print(f"Found {fcount} app CMake option blocks needing release version")
           if fcount != 1:
               raise SystemExit(f"Expected one app CMake option block, found {fcount}")
-          s = s.replace(old_fork_opt, new_fork_opt, 1)
+          s = s.replace(old_release_opt, new_release_opt, 1)
 
           old = '--install-prefix="$(winepwd)/'
           new = '--install-prefix="Z:$(pwd)/'
@@ -91,9 +91,17 @@ jobs:
       - name: Include patch references in package
         run: |
           cp "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch" src/GitAddonsManager/
-          cp "$GITHUB_WORKSPACE/fork-updater.patch" src/GitAddonsManager/
+          cp "$GITHUB_WORKSPACE/gam-enhancements.patch" src/GitAddonsManager/
 
       - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitAddonsManager-Win64
+          path: src/GitAddonsManager/
+          if-no-files-found: error
+          include-hidden-files: true
+
+      - name: Upload legacy updater bridge
         uses: actions/upload-artifact@v4
         with:
           name: GitAddonsManager-Win64-branchfix
