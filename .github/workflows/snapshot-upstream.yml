@@ -1,0 +1,24 @@
+name: Snapshot upstream source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/snapshot-upstream.yml'
+  workflow_dispatch:
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone exact WobLight base
+        run: |
+          git clone https://gitlab.com/woblight/GitAddonsManager.git src
+          cd src
+          git checkout 4cfafffd4e48038203622f201729349b8e8b9809
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitAddonsManager-upstream-source
+          path: src/
+          include-hidden-files: true
