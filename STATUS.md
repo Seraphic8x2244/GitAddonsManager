@@ -32,13 +32,13 @@
 - Build produces both clean and legacy-named artifacts for the one-time updater transition.
 
 ## Runtime test status
-- Installed `v1.1.0-branchfix.2` successfully detects the published `v1.2.0` release.
-- Download/update discovery therefore works end-to-end.
-- Applying the update fails on Windows with `Failed to move files to D:/...`.
-- Current investigation target: updater extraction/replacement stage after download.
+- Installed `v1.1.0-branchfix.2` successfully detected the published `v1.2.0` release.
+- In-app download and replacement completed successfully on Windows.
+- Files in the GAM folder were updated and the restarted application reports `v1.2.0`.
+- A misleading `Failed to move files to D:/...` message was shown despite the successful update.
+- Current investigation target: identify and remove the false-negative message in the updater apply/cleanup stage.
 
 ## Untested
-- Successful in-place replacement/restart from `v1.1.0-branchfix.2` to `v1.2.0`.
 - Wider regression testing across addon repositories remains limited.
 
 ## Transition requirement
@@ -60,4 +60,4 @@ Later:
 - Named management of multiple WoW directories/installations.
 
 ## Exact next step
-Inspect the existing `executeUpdate()` replacement logic and the generated ZIP layout to determine why Windows reports `Failed to move files to D:/...`. Patch the apply stage without regressing the now-working GitHub release discovery/download path, build a test release, then retry the in-app update.
+Trace the condition that emits `Failed to move files to ...` after a successful update, make that result accurately reflect partial/cleanup failures, then proceed with the font-size / toolbar / branch-width UI batch.
