@@ -5,7 +5,7 @@ on:
   push:
     paths:
       - 'apply_branch_fix.py'
-      - 'gam-enhancements.patch'
+      - 'apply_gam_enhancements.py'
       - '.github/workflows/build-windows.yml'
 
 jobs:
@@ -40,8 +40,8 @@ jobs:
 
       - name: Apply GAM enhancements
         run: |
+          python3 "$GITHUB_WORKSPACE/apply_gam_enhancements.py"
           cd src
-          git apply "$GITHUB_WORKSPACE/gam-enhancements.patch"
           git diff --check
 
       - name: Fix current CMake/Wine install-prefix compatibility
@@ -91,7 +91,7 @@ jobs:
       - name: Include patch references in package
         run: |
           cp "$GITHUB_WORKSPACE/GitAddonsManager_branch_fix.generated.patch" src/GitAddonsManager/
-          cp "$GITHUB_WORKSPACE/gam-enhancements.patch" src/GitAddonsManager/
+          cp "$GITHUB_WORKSPACE/apply_gam_enhancements.py" src/GitAddonsManager/
 
       - name: Upload portable build
         uses: actions/upload-artifact@v4
