@@ -11,27 +11,27 @@ def replace_once(path, old, new, label):
 
 replace_once(
     "src/CMakeLists.txt",
-    '''set(\${PROJECT_NAME}_BRANCH_NAME "" CACHE STRING "name of the branch for self updates")
+    '''set(${PROJECT_NAME}_BRANCH_NAME "" CACHE STRING "name of the branch for self updates")
 
-option(\${PROJECT_NAME}_SELF_UPDATE "Enable the self-update feature")''',
-    '''set(\${PROJECT_NAME}_BRANCH_NAME "" CACHE STRING "name of the branch for self updates")
+option(${PROJECT_NAME}_SELF_UPDATE "Enable the self-update feature")''',
+    '''set(${PROJECT_NAME}_BRANCH_NAME "" CACHE STRING "name of the branch for self updates")
 
-set(\${PROJECT_NAME}_RELEASE_VERSION "development" CACHE STRING "version of this GitAddonsManager build")
+set(${PROJECT_NAME}_RELEASE_VERSION "development" CACHE STRING "version of this GitAddonsManager build")
 
-option(\${PROJECT_NAME}_SELF_UPDATE "Enable the self-update feature")''',
+option(${PROJECT_NAME}_SELF_UPDATE "Enable the self-update feature")''',
     "release version CMake setting",
 )
 
 replace_once(
     "src/CMakeLists.txt",
     '''add_compile_definitions(
-    GIT_DESCRIBE="\${\${PROJECT_NAME}_GIT_DESCRIBE}"
-    GAM_EXEC="GitAddonsManager\${CMAKE_EXECUTABLE_SUFFIX}"
+    GIT_DESCRIBE="${${PROJECT_NAME}_GIT_DESCRIBE}"
+    GAM_EXEC="GitAddonsManager${CMAKE_EXECUTABLE_SUFFIX}"
     )''',
     '''add_compile_definitions(
-    GIT_DESCRIBE="\${\${PROJECT_NAME}_GIT_DESCRIBE}"
-    GAM_EXEC="GitAddonsManager\${CMAKE_EXECUTABLE_SUFFIX}"
-    GAM_RELEASE_VERSION="\${\${PROJECT_NAME}_RELEASE_VERSION}"
+    GIT_DESCRIBE="${${PROJECT_NAME}_GIT_DESCRIBE}"
+    GAM_EXEC="GitAddonsManager${CMAKE_EXECUTABLE_SUFFIX}"
+    GAM_RELEASE_VERSION="${${PROJECT_NAME}_RELEASE_VERSION}"
     )''',
     "release version compile definition",
 )
