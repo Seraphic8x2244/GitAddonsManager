@@ -52,6 +52,14 @@ jobs:
           p = Path("src/CI.mk")
           s = p.read_text(encoding="utf-8")
 
+          old_fork_opt = '-DGitAddonsManager_BRANCH_NAME=$(branch)'
+          new_fork_opt = old_fork_opt + ' -DGitAddonsManager_FORK_VERSION="$(GAM_FORK_VERSION)"'
+          fcount = s.count(old_fork_opt)
+          print(f"Found {fcount} app CMake option blocks needing fork version")
+          if fcount != 1:
+              raise SystemExit(f"Expected one app CMake option block, found {fcount}")
+          s = s.replace(old_fork_opt, new_fork_opt, 1)
+
           old = '--install-prefix="$(winepwd)/'
           new = '--install-prefix="Z:$(pwd)/'
           count = s.count(old)
